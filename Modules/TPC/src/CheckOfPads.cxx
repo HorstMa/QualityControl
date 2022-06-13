@@ -9,11 +9,11 @@
 // or submit itself to any jurisdiction.
 
 ///
-/// \file   CheckForEmptyPads.cxx
-/// \author Laura Serksnyte
+/// \file   CheckOfPads.cxx
+/// \author Laura Serksnyte, Maximilian Horst
 ///
 
-#include "TPC/CheckForEmptyPads.h"
+#include "TPC/CheckOfPads.h"
 #include "QualityControl/MonitorObject.h"
 #include "QualityControl/Quality.h"
 #include "QualityControl/QcInfoLogger.h"
@@ -31,7 +31,7 @@
 
 namespace o2::quality_control_modules::tpc
 {
-void CheckForEmptyPads::configure()
+void CheckOfPads::configure()
 {
   if (auto param = mCustomParameters.find("mediumQualityPercentageOfWorkingPads"); param != mCustomParameters.end()) {
     mMediumQualityLimit = std::atof(param->second.c_str());
@@ -56,7 +56,7 @@ void CheckForEmptyPads::configure()
 }
 
 //______________________________________________________________________________
-Quality CheckForEmptyPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>* moMap)
+Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>* moMap)
 {
   Quality result = Quality::Null;
   for (auto const& moObj : *moMap) {
@@ -136,10 +136,10 @@ Quality CheckForEmptyPads::check(std::map<std::string, std::shared_ptr<MonitorOb
 }
 
 //______________________________________________________________________________
-std::string CheckForEmptyPads::getAcceptedType() { return "TCanvas"; }
+std::string CheckOfPads::getAcceptedType() { return "TCanvas"; }
 
 //______________________________________________________________________________
-void CheckForEmptyPads::beautify(std::shared_ptr<MonitorObject> mo, Quality)
+void CheckOfPads::beautify(std::shared_ptr<MonitorObject> mo, Quality)
 {
   auto moName = mo->getName();
   if (auto it = std::find(mMOsToCheck2D.begin(), mMOsToCheck2D.end(), moName); it != mMOsToCheck2D.end()) {
