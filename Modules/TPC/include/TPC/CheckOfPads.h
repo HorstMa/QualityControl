@@ -45,11 +45,11 @@ class CheckOfPads : public o2::quality_control::checker::CheckInterface
   std::vector<Quality> mSectorsQuality_EV;
   std::vector<std::string> mSectorsName_Mean;
   std::vector<Quality> mSectorsQuality_Mean;
+  std::vector<Quality> mSectorsQuality_Empty;
   std::vector<std::string> mSectorsName;
   std::vector<Quality> mSectorsQuality;
   std::vector<std::string> mMOsToCheck2D;
   std::string mCheckChoice="NULL";
-  std::string mErrorHandling;
   static constexpr std::string_view CheckChoiceMean = "Mean";
   static constexpr std::string_view CheckChoiceExpectedValue = "ExpectedValue";
   static constexpr std::string_view CheckChoiceBoth = "Both";
@@ -62,10 +62,12 @@ class CheckOfPads : public o2::quality_control::checker::CheckInterface
   float mMeanBadSigmas;
   float mTotalMean;
   float mTotalStdev;
+  bool mEmptyCheck=false;
   std::vector<float> mPadMeans;
   std::vector<float> mPadStdev;
+  std::vector<float> mEmptyPadPercent;
 };
 
 } // namespace o2::quality_control_modules::tpc
 
-#endif // QC_MODULE_TPC_CheckForEmptyPads_H
+#endif // QC_MODULE_TPC_CheckOfPads_H

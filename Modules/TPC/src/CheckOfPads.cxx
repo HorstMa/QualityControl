@@ -17,7 +17,6 @@
 #include "QualityControl/MonitorObject.h"
 #include "QualityControl/Quality.h"
 #include "QualityControl/QcInfoLogger.h"
-#include <fairlogger/Logger.h>
 
 // ROOT
 #include <TCanvas.h>
@@ -50,22 +49,27 @@ void CheckOfPads::configure()
     std::string CheckChoiceString = param->second.c_str();
     if (size_t finder = CheckChoiceString.find("ExpectedValue"); finder != std::string::npos) {
       mCheckChoice = "ExpectedValue";
-      ILOG(Warning, Support) << "Found expected Value in the CheckChoice String" << ENDM;
+      //ILOG(Warning, Support) << "Found expected Value in the CheckChoice String" << ENDM;
     }
     if (size_t finder = CheckChoiceString.find("Mean"); finder != std::string::npos) {
-      ILOG(Warning, Support) << "Found Mean in the CheckChoice String" << ENDM;
+      //ILOG(Warning, Support) << "Found Mean in the CheckChoice String" << ENDM;
       if (mCheckChoice == "ExpectedValue") {
         mCheckChoice = "Both";
-        ILOG(Warning, Support) << "Setting CheckChoice to Both" << ENDM;
+        //ILOG(Warning, Support) << "Setting CheckChoice to Both" << ENDM;
       } else {
         mCheckChoice = "Mean";
-        ILOG(Warning, Support) << "Setting CheckChoice to Mean" << ENDM;
+        //ILOG(Warning, Support) << "Setting CheckChoice to Mean" << ENDM;
       }
     }
-
+    if (size_t finder = CheckChoiceString.find("Empty"); finder != std::string::npos) {
+      mEmptyCheck = true;
+      //ILOG(Warning, Support) << "Found Empty in the CheckChoice String. setting mEmptyCheck to " << mEmptyCheck << ENDM;
+    }
     if (mCheckChoice == "NULL") {
-      mCheckChoice = "Both";
-      ILOG(Error, Support) << "This Check requires a CheckChoice. The given value is wrong or not readable. Chose between 'ExpectedValue'(Compare the pad mean to an expectedValue), 'Mean' (compare pad mean to global mean) or Both (='Mean,ExpectedValue'). As a default 'Both' was selected." << ENDM;
+      if (mEmptyCheck == false) {
+        mCheckChoice = "Both";
+        ILOG(Warning, Support) << "This Check requires a CheckChoice. The given value is wrong or not readable. Chose between 'ExpectedValue'(Compare the pad mean to an expectedValue), 'Mean' (compare pad mean to global mean) or Both (='Mean,ExpectedValue'). As a default 'Both' was selected." << ENDM;
+      }
     }
   } else {
     mCheckChoice = "Both";
@@ -75,24 +79,24 @@ void CheckOfPads::configure()
     // load expectedValue
     if (auto param = mCustomParameters.find("ExpectedValue"); param != mCustomParameters.end()) {
       mExpectedValue = std::atof(param->second.c_str());
-      ILOG(Warning, Support) << " Expected Value: " << mExpectedValue << ENDM;
+      //ILOG(Warning, Support) << " Expected Value: " << mExpectedValue << ENDM;
     } else {
       mExpectedValue = 1.0;
-      ILOG(Warning, Support) << "Chosen check requires ExpectedValue which is not given. Setting to default 1 ." << ENDM;
+      ILOG(Info, Support) << "Chosen check requires ExpectedValue which is not given. Setting to default 1 ." << ENDM;
     }
     // load expectedValue Sigma Medium
     if (auto param = mCustomParameters.find("ExpectedValueSigmaMedium"); param != mCustomParameters.end()) {
       mExpectedValueMediumSigmas = std::atof(param->second.c_str());
     } else {
       mExpectedValueMediumSigmas = 3.;
-      ILOG(Warning, Support) << "Chosen check requires ExpectedValueSigmaMedium which is not given. Setting to default 3 sigma ." << ENDM;
+      ILOG(Info, Support) << "Chosen check requires ExpectedValueSigmaMedium which is not given. Setting to default 3 sigma ." << ENDM;
     }
     // load expectedValue Sigma Bad
     if (auto param = mCustomParameters.find("ExpectedValueSigmaBad"); param != mCustomParameters.end()) {
       mExpectedValueBadSigmas = std::atof(param->second.c_str());
     } else {
       mExpectedValueBadSigmas = 6.;
-      ILOG(Warning, Support) << "Chosen check requires ExpectedValueSigmaBad which is not given. Setting to default 6 sigma ." << ENDM;
+      ILOG(Info, Support) << "Chosen check requires ExpectedValueSigmaBad which is not given. Setting to default 6 sigma ." << ENDM;
     }
   }
   // Cehck if Mean comparison is wished for:
@@ -102,25 +106,17 @@ void CheckOfPads::configure()
       mMeanMediumSigmas = std::atof(param->second.c_str());
     } else {
       mMeanMediumSigmas = 3;
-      ILOG(Warning, Support) << "Chosen check requires MeanSigmaMedium which is not given. Setting to default 3 sigma ." << ENDM;
+      ILOG(Info, Support) << "Chosen check requires MeanSigmaMedium which is not given. Setting to default 3 sigma ." << ENDM;
     }
     // load Mean Sigma Bad
     if (auto param = mCustomParameters.find("MeanSigmaBad"); param != mCustomParameters.end()) {
       mMeanBadSigmas = std::atof(param->second.c_str());
     } else {
       mMeanBadSigmas = 6;
-      ILOG(Warning, Support) << "Chosen check requires MeanSigmaBad which is not given. Setting to default 6 sigma ." << ENDM;
+      ILOG(Info, Support) << "Chosen check requires MeanSigmaBad which is not given. Setting to default 6 sigma ." << ENDM;
     }
   }
 
-  // Check how the errors should be taken into account (for the calculation of the pad mean ('Both') and the global mean ('Mean')):
-  // options: StandardDeviation (only from the mean calculation) and Full. For now only Standard Deviation is supported
-  if (auto param = mCustomParameters.find("ErrorHandling"); param != mCustomParameters.end()) {
-    mErrorHandling = std::atof(param->second.c_str());
-  } else {
-    mErrorHandling = "StandardDeviation";
-    ILOG(Warning, Support) << "This Check (" << mCheckChoice << ") requires 'ErrorHandling'. Options are 'StandardDeviation' and 'Full'. For now only StandardDeviation is supported. StandardDeviation is set as default." << ENDM;
-  }
 
   if (auto param = mCustomParameters.find("MOsNames2D"); param != mCustomParameters.end()) {
     auto temp = param->second.c_str();
@@ -138,6 +134,7 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
   Quality result_EV = Quality::Null;
   Quality result_Mean = Quality::Null;
   Quality result_Global = Quality::Null;
+  Quality result_Empty = Quality::Null;
   for (auto const& moObj : *moMap) {
     auto mo = moObj.second;
     if (!mo) {
@@ -150,6 +147,7 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
       auto histSubName = moName.substr(7, end - 7);
       result_EV = Quality::Good;
       result_Mean = Quality::Good;
+
       auto* canv = (TCanvas*)mo->getObject();
       if (!canv)
         continue;
@@ -176,7 +174,7 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
 
         mSectorsName.push_back(titleh);
         // check if we are dealing with IROC or OROC
-        int totalPads = 0;
+        float totalPads = 0;
         int MaximumXBin = 0;
         int MaximumYBin = 110;
         if (titleh.find("IROC") != std::string::npos) {
@@ -188,6 +186,31 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
         } else {
           return Quality::Null;
         }
+        if (mEmptyCheck) {
+          const int NX = h->GetNbinsX();
+          const int NY = h->GetNbinsY();
+          // Check how many of the pads are non zero
+          float sum = 0.;
+          for (int i = 1; i <= NX; i++) {
+            for (int j = 1; j <= NY; j++) {
+              float val = h->GetBinContent(i, j);
+              if (val > 0.) {
+                sum += 1;
+              }
+            }
+          }
+          // ILOG(Error, Support) << "Medium: " << mMediumQualityLimit * totalPads << " Bad: " << mBadQualityLimit * totalPads << ENDM;
+          if (sum > mMediumQualityLimit * totalPads) {
+            result_Empty = Quality::Good;
+          } else if (sum < mBadQualityLimit * totalPads) {
+            result_Empty = Quality::Bad;
+          } else {
+            result_Empty = Quality::Medium;
+          }
+          mSectorsQuality_Empty.push_back(result_Empty);
+          mEmptyPadPercent.push_back(1. - (float)sum / totalPads);
+        }
+
         float PadSum = 0.;
         int PadsCount = 0;
         float PadStdev = 0.;
@@ -231,45 +254,44 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
       }
       mTotalStdev = sqrt(1 / SumOfWeights); // standard deviation of the weighted average.
       mTotalMean /= SumOfWeights;           // Weighted average (by standard deviation) of the total mean
-      ILOG(Warning, Support) << "Total Mean: " << mTotalMean << " Stdev: " << mTotalStdev << ENDM;
       // calculate the Qualities:
 
       for (size_t it = 0; it < mPadMeans.size(); it++) { // loop over all pads
-        ILOG(Warning, Support) << "Pad: " << mSectorsName[it] << " Mean: " << mPadMeans[it] << " Stdev: " << mPadStdev[it] << " Expected: " << mExpectedValue << ENDM;
 
         if (mCheckChoice == "ExpectedValue" || mCheckChoice == "Both") {
 
           if (fabs(mPadMeans[it] - mExpectedValue) < mPadStdev[it] * mExpectedValueMediumSigmas) {
             result_EV = Quality::Good;
-            ILOG(Warning, Support) << "Good Quality! " << fabs(mPadMeans[it] - mExpectedValue) << " < " << mPadStdev[it] * mExpectedValueMediumSigmas << ENDM;
+            // ILOG(Warning, Support) << "Good Quality! " << fabs(mPadMeans[it] - mExpectedValue) << " < " << mPadStdev[it] * mExpectedValueMediumSigmas << ENDM;
           } else if (fabs(mPadMeans[it] - mExpectedValue) >= mPadStdev[it] * mExpectedValueMediumSigmas && fabs(mPadMeans[it] - mExpectedValue) < mPadStdev[it] * mExpectedValueBadSigmas) {
             result_EV = Quality::Medium;
-            ILOG(Warning, Support) << "Medium Quality! " << fabs(mPadMeans[it] - mExpectedValue) << " > " << mPadStdev[it] * mExpectedValueMediumSigmas << ENDM;
+            // ILOG(Warning, Support) << "Medium Quality! " << fabs(mPadMeans[it] - mExpectedValue) << " > " << mPadStdev[it] * mExpectedValueMediumSigmas << ENDM;
           } else {
             result_EV = Quality::Bad;
-            ILOG(Warning, Support) << "Bad Quality! " << fabs(mPadMeans[it] - mExpectedValue) << " > " << mPadStdev[it] * mExpectedValueBadSigmas << ENDM;
+            // ILOG(Warning, Support) << "Bad Quality! " << fabs(mPadMeans[it] - mExpectedValue) << " > " << mPadStdev[it] * mExpectedValueBadSigmas << ENDM;
           }
           // ILOG(Warning, Support) << "Pad: " << titleh << " Mean: " << mPadMeans[it] << " Stdev: " << mPadStdev[it] << " Expected: " << mExpectedValue << " Sigma Med: " << mExpectedValueMediumSigmas << " Sigma Bad: " << mExpectedValueBadSigmas << " Result: " << result_EV << ENDM;
         }
 
         mSectorsQuality_EV.push_back(result_EV);
-
         if (mCheckChoice == "Mean" || mCheckChoice == "Both") {
 
           if (fabs(mPadMeans[it] - mTotalMean) < mPadStdev[it] * mMeanMediumSigmas) {
             result_Mean = Quality::Good;
-            ILOG(Warning, Support) << "Good Quality! " << fabs(mPadMeans[it] - mTotalMean) << " < " << mPadStdev[it] * mMeanMediumSigmas << ENDM;
+            // ILOG(Warning, Support) << "Good Quality! " << fabs(mPadMeans[it] - mTotalMean) << " < " << mPadStdev[it] * mMeanMediumSigmas << ENDM;
           } else if (fabs(mPadMeans[it] - mTotalMean) >= mPadStdev[it] * mMeanMediumSigmas && fabs(mPadMeans[it] - mTotalMean) < mPadStdev[it] * mMeanBadSigmas) {
             result_Mean = Quality::Medium;
-            ILOG(Warning, Support) << "Medium Quality! " << fabs(mPadMeans[it] - mTotalMean) << " > " << mPadStdev[it] * mMeanMediumSigmas << ENDM;
+            // ILOG(Warning, Support) << "Medium Quality! " << fabs(mPadMeans[it] - mTotalMean) << " > " << mPadStdev[it] * mMeanMediumSigmas << ENDM;
           } else {
             result_Mean = Quality::Bad;
-            ILOG(Warning, Support) << "Bad Quality! " << fabs(mPadMeans[it] - mTotalMean) << " > " << mPadStdev[it] * mMeanBadSigmas << ENDM;
+            // ILOG(Warning, Support) << "Bad Quality! " << fabs(mPadMeans[it] - mTotalMean) << " > " << mPadStdev[it] * mMeanBadSigmas << ENDM;
           }
           // ILOG(Warning, Support) << "Pad: " << titleh << " Mean: " << mPadMeans[it] << " Stdev: " << mPadStdev[it] << " Global Mean: " << mTotalMean << " Sigma Med: " << mMeanMediumSigmas << " Sigma Bad: " << mMeanBadSigmas << " Result: " << result_Mean << ENDM;
         }
 
         mSectorsQuality_Mean.push_back(result_Mean);
+
+        ILOG(Warning, Support) << mSectorsQuality_Empty[it] << " " << result_Mean << " " << result_EV << ENDM;
 
         if (mCheckChoice == "Both") { // compare the total mean to the expected value. This is returned as the quality object
           if (fabs(mTotalMean - mExpectedValue) < mTotalStdev * mExpectedValueMediumSigmas) {
@@ -279,20 +301,59 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
           } else {
             result_Global = Quality::Medium;
           }
-
+          // compare Qualities of mean, expected value and (if applicable) empty
           if (result_Mean.isWorseThan(result_EV)) {
             // ILOG(Error, Support) << result_Mean << " is Worse than " << mSectorsQuality_EV[tpads - 1] << ENDM;
-            mSectorsQuality.push_back(result_Mean);
+            if (mEmptyCheck) {
+              if (result_Mean.isWorseThan(mSectorsQuality_Empty[it])) {
+
+                mSectorsQuality.push_back(result_Mean);
+              } else {
+                mSectorsQuality.push_back(mSectorsQuality_Empty[it]);
+              }
+            } else {
+              mSectorsQuality.push_back(result_Mean);
+            }
           } else {
+            if (mEmptyCheck) {
+              if (result_EV.isWorseThan(mSectorsQuality_Empty[it])) {
+
+                mSectorsQuality.push_back(result_EV);
+              } else {
+                mSectorsQuality.push_back(mSectorsQuality_Empty[it]);
+              }
+            } else {
+              mSectorsQuality.push_back(result_EV);
+            }
             // ILOG(Error, Support) << result_Mean << " is Better than or Equal to " << mSectorsQuality_EV[tpads - 1] << ENDM;
             // ILOG(Warning,Support)<<"Adding Quality: " << mSectorsQuality_EV[tpads - 1] <<ENDM;
-            mSectorsQuality.push_back(result_EV);
           }
         } // if mCheckChoice==Both
         else if (mCheckChoice == "Mean") {
-          mSectorsQuality.push_back(result_Mean);
+          if (mEmptyCheck) {
+            if (result_Mean.isWorseThan(mSectorsQuality_Empty[it])) {
+              mSectorsQuality.push_back(result_Mean);
+            } else {
+              mSectorsQuality.push_back(mSectorsQuality_Empty[it]);
+            }
+          } else {
+            mSectorsQuality.push_back(result_Mean);
+          }
         } else if (mCheckChoice == "ExpectedValue") {
-          mSectorsQuality.push_back(result_EV);
+          if (mEmptyCheck) {
+            if (result_EV.isWorseThan(mSectorsQuality_Empty[it])) {
+
+              mSectorsQuality.push_back(result_EV);
+            } else {
+              mSectorsQuality.push_back(mSectorsQuality_Empty[it]);
+            }
+          } else {
+            mSectorsQuality.push_back(result_EV);
+          }
+        } else if (mEmptyCheck) {
+          mSectorsQuality.push_back(mSectorsQuality_Empty[it]);
+        } else {
+          ILOG(Fatal, Support) << "No Quality object found! Check Choice was: " << mCheckChoice << " and EmptyCheck was set to: " << mEmptyCheck << ENDM;
         }
       } // for it in vectors (pads)
 
@@ -346,10 +407,10 @@ void CheckOfPads::beautify(std::shared_ptr<MonitorObject> mo, Quality)
       }
 
       const int index = std::distance(mSectorsName.begin(), it);
-      TPaveText* msgQuality = new TPaveText(0.1, 0.9, 0.9, 0.95, "NDC");
+      TPaveText* msgQuality = new TPaveText(0.1, 0.88, 0.81, 0.95, "NDC");
       msgQuality->SetBorderSize(1);
       Quality qualitySpecial = mSectorsQuality[index];
-      // ILOG(Warning, Support) << "Pad No. " << tpads - 1 << " Has quality: " << qualitySpecial << ENDM;
+      ILOG(Warning, Support) << "Pad No. " << tpads - 1 << " Has quality: " << qualitySpecial << ENDM;
       msgQuality->SetName(Form("%s_msg", mo->GetName()));
       if (qualitySpecial == Quality::Good) {
         msgQuality->Clear();
@@ -367,13 +428,17 @@ void CheckOfPads::beautify(std::shared_ptr<MonitorObject> mo, Quality)
         h->SetFillColor(0);
       }
       if (mCheckChoice == "Both") {
-        msgQuality->AddText(Form("Global Mean: %f, Pad Mean: %f, Expected Value: %f", mTotalMean, mPadMeans[index], mExpectedValue));
+        msgQuality->AddText(fmt::format("Global Mean: {:f}, Pad Mean: {:f}, Expected Value: {:f}", mTotalMean, mPadMeans[index], mExpectedValue).data());
       }
       if (mCheckChoice == "Mean") {
-        msgQuality->AddText(Form("Global Mean: %f, Pad Mean: %f", mTotalMean, mPadMeans[index]));
+        msgQuality->AddText(fmt::format("Global Mean: {:f}, Pad Mean: {:f}", mTotalMean, mPadMeans[index]).data());
       }
       if (mCheckChoice == "ExpectedValue") {
-        msgQuality->AddText(Form("Pad Mean: %f, Expected Value: %f", mPadMeans[index], mExpectedValue));
+        msgQuality->AddText(fmt::format("Pad Mean: {:f}, Expected Value: {:f}", mPadMeans[index], mExpectedValue).data());
+      }
+      if (mEmptyCheck) {
+        // msgQuality->AddText(fmt::format("{:f} percent Empty pads. Med: {:f}, bad: {:f}", mEmptyPadPercent[index], mMediumQualityLimit, mBadQualityLimit).data());
+        msgQuality->AddText(fmt::format("{:f} percent Empty pads.", mEmptyPadPercent[index]).data());
       }
       h->SetLineColor(kBlack);
       msgQuality->Draw("same");
