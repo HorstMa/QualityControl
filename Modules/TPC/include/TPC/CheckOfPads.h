@@ -63,6 +63,9 @@ class CheckOfPads : public o2::quality_control::checker::CheckInterface
   float mTotalMean;
   float mTotalStdev;
   bool mEmptyCheck=false;
+  bool mExpectedValueCheck=false;
+  bool mMeanCheck = false;
+  bool mFoundCheck=false;
   std::vector<float> mPadMeans;
   std::vector<float> mPadStdev;
   std::vector<float> mEmptyPadPercent;

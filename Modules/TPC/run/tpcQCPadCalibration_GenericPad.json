@@ -114,7 +114,7 @@
           "checkParameters": {
             "mediumQualityPercentageOfWorkingPads" : "0.9",
             "badQualityPercentageOfWorkingPads" : "0.8",
-            "CheckChoice" : "ExpectedValue,Empty",
+            "CheckChoice" : "Mean,ExpectedValue,Empty",
             "ExpectedValueSigmaMedium" : "3",
             "ExpectedValueSigmaBad" : "6",
             "MeanSigmaMedium" : "1",
