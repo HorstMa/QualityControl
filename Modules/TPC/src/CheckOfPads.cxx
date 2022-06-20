@@ -167,13 +167,15 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
         // check if we are dealing with IROC or OROC
         float totalPads = 0;
         int MaximumXBin = 0;
-        int MaximumYBin = 110;
+        int MaximumYBin = 0;
         if (titleh.find("IROC") != std::string::npos) {
           totalPads = 5280;
           MaximumXBin = 62;
+          MaximumYBin = 102;
         } else if (titleh.find("OROC") != std::string::npos) {
           totalPads = 9280;
           MaximumXBin = 88;
+          MaximumYBin = 140;
         } else {
           return Quality::Null;
         }
@@ -187,8 +189,8 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
         for (int RunNo = 1; RunNo <= 2; RunNo++) {
           // Run1: calculate single Pad total->Mean
           // Run2: calculate standardDeviation from mean
-          for (int xBin = 1; xBin < MaximumXBin; xBin++) {
-            for (int yBin = 1; yBin < MaximumYBin; yBin++) {
+          for (int xBin = 1; xBin <= MaximumXBin; xBin++) {
+            for (int yBin = 1; yBin <= MaximumYBin; yBin++) {
               float Binvalue = h->GetBinContent(xBin, yBin);
               if (Binvalue != 0) {
                 if (RunNo == 1) {
