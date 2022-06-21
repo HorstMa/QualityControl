@@ -166,16 +166,16 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
         mSectorsName.push_back(titleh);
         // check if we are dealing with IROC or OROC
         float totalPads = 0;
-        int MaximumXBin = 0;
-        int MaximumYBin = 0;
+        const int MaximumXBin = h->GetNbinsX();
+        const int MaximumYBin = h->GetNbinsY();
         if (titleh.find("IROC") != std::string::npos) {
           totalPads = 5280;
-          MaximumXBin = 62;
-          MaximumYBin = 102;
+          // MaximumXBin = 62;
+          // MaximumYBin = 102;
         } else if (titleh.find("OROC") != std::string::npos) {
           totalPads = 9280;
-          MaximumXBin = 88;
-          MaximumYBin = 140;
+          // MaximumXBin = 88;
+          // MaximumYBin = 140;
         } else {
           return Quality::Null;
         }
@@ -361,13 +361,13 @@ void CheckOfPads::beautify(std::shared_ptr<MonitorObject> mo, Quality)
       }
 
       if (mMeanCheck) {
-        msgQuality->AddText(fmt::format("Pad Mean: {}, Global Mean: {}", mPadMeans[index], mTotalMean).data());
+        msgQuality->AddText(fmt::format("Pad Mean: {:1.4f}+-{:1.4f}, Global Mean: {:1.4f}", mPadMeans[index], mPadStdev[index], mTotalMean).data());
       }
       if (mExpectedValueCheck) {
-        msgQuality->AddText(fmt::format("Pad Mean: {}, Expected Value: {}", mPadMeans[index], mExpectedValue).data());
+        msgQuality->AddText(fmt::format("Pad Mean: {:1.4}+-{:1.4f}, Expected Value: {:1.4f}", mPadMeans[index], mPadStdev[index], mExpectedValue).data());
       }
       if (mEmptyCheck) {
-        msgQuality->AddText(fmt::format("{} percent Empty pads.", mEmptyPadPercent[index]).data());
+        msgQuality->AddText(fmt::format("{:1.3f} % Empty pads.", mEmptyPadPercent[index] * 100).data());
       }
       h->SetLineColor(kBlack);
       msgQuality->Draw("same");

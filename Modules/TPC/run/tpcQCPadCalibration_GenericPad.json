@@ -136,9 +136,9 @@
           }],
           "stopTrigger_comment": [ "MOsNames are required for code to work, runs check of empty pads, should be the same as MOs, the MOs must be separated by comma only, no spaces" ],
           "checkParameters": {
-            "mediumQualityPercentageOfWorkingPads" : "0.99999",
-            "badQualityPercentageOfWorkingPads" : "0.99998",
-            "CheckChoice" : "Empty",
+            "mediumQualityPercentageOfWorkingPads" : "0.9",
+            "badQualityPercentageOfWorkingPads" : "0.7",
+            "CheckChoice" : "Empty,Mean",
             "ExpectedValueSigmaMedium" : "3",
             "ExpectedValueSigmaBad" : "6",
             "MeanSigmaMedium" : "1",
