@@ -41,6 +41,9 @@ class CheckOfPads : public o2::quality_control::checker::CheckInterface
 
  private:
   ClassDefOverride(CheckOfPads, 1);
+  static constexpr std::string_view CheckChoiceMean = "Mean";
+  static constexpr std::string_view CheckChoiceExpectedValue = "ExpectedValue";
+  static constexpr std::string_view CheckChoiceBoth = "Both";
   std::vector<std::string> mSectorsName_EV;
   std::vector<Quality> mSectorsQuality_EV;
   std::vector<std::string> mSectorsName_Mean;
@@ -49,10 +52,10 @@ class CheckOfPads : public o2::quality_control::checker::CheckInterface
   std::vector<std::string> mSectorsName;
   std::vector<Quality> mSectorsQuality;
   std::vector<std::string> mMOsToCheck2D;
-  std::string mCheckChoice="NULL";
-  static constexpr std::string_view CheckChoiceMean = "Mean";
-  static constexpr std::string_view CheckChoiceExpectedValue = "ExpectedValue";
-  static constexpr std::string_view CheckChoiceBoth = "Both";
+  std::string mCheckChoice = "NULL";
+  std::vector<float> mPadMeans;
+  std::vector<float> mPadStdev;
+  std::vector<float> mEmptyPadPercent;
   float mMediumQualityLimit;
   float mBadQualityLimit;
   float mExpectedValue;
@@ -62,13 +65,10 @@ class CheckOfPads : public o2::quality_control::checker::CheckInterface
   float mMeanBadSigmas;
   float mTotalMean;
   float mTotalStdev;
-  bool mEmptyCheck=false;
-  bool mExpectedValueCheck=false;
+  bool mEmptyCheck = false;
+  bool mExpectedValueCheck = false;
   bool mMeanCheck = false;
-  bool mFoundCheck=false;
-  std::vector<float> mPadMeans;
-  std::vector<float> mPadStdev;
-  std::vector<float> mEmptyPadPercent;
+  bool mFoundCheck = false;
 };
 
 } // namespace o2::quality_control_modules::tpc

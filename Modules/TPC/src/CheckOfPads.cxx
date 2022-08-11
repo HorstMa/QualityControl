@@ -122,10 +122,10 @@ void CheckOfPads::configure()
 //______________________________________________________________________________
 Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>* moMap)
 {
-  Quality result_EV = Quality::Null;
-  Quality result_Mean = Quality::Null;
-  Quality result_Global = Quality::Null;
-  Quality result_Empty = Quality::Null;
+  Quality resultEV = Quality::Null;
+  Quality resultMean = Quality::Null;
+  Quality resultGlobal = Quality::Null;
+  Quality resultEmpty = Quality::Null;
   for (auto const& moObj : *moMap) {
     auto mo = moObj.second;
     if (!mo) {
@@ -136,12 +136,13 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
     if (auto it = std::find(mMOsToCheck2D.begin(), mMOsToCheck2D.end(), moName); it != mMOsToCheck2D.end()) {
       size_t end = moName.find("_2D");
       auto histSubName = moName.substr(7, end - 7);
-      result_EV = Quality::Good;
-      result_Mean = Quality::Good;
+      resultEV = Quality::Good;
+      resultMean = Quality::Good;
 
       auto* canv = (TCanvas*)mo->getObject();
-      if (!canv)
+      if (!canv) {
         continue;
+      }
       // Check all histograms in the canvas
 
       mTotalMean = 0.;
@@ -170,128 +171,124 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
         const int MaximumYBin = h->GetNbinsY();
         if (titleh.find("IROC") != std::string::npos) {
           totalPads = 5280;
-          // MaximumXBin = 62;
-          // MaximumYBin = 102;
         } else if (titleh.find("OROC") != std::string::npos) {
           totalPads = 9280;
-          // MaximumXBin = 88;
-          // MaximumYBin = 140;
         } else {
           return Quality::Null;
         }
 
-        float PadSum = 0.;
-        int PadsCount = 0;
-        float PadStdev = 0.;
-        float PadMean = 0.;
+        float padSum = 0.;
+        int padsCount = 0;
+        float padStdev = 0.;
+        float padMean = 0.;
 
         // Run twice to get the mean and the standard deviation
-        for (int RunNo = 1; RunNo <= 2; RunNo++) {
+        for (int runNo = 1; runNo <= 2; runNo++) {
           // Run1: calculate single Pad total->Mean
           // Run2: calculate standardDeviation from mean
           for (int xBin = 1; xBin <= MaximumXBin; xBin++) {
             for (int yBin = 1; yBin <= MaximumYBin; yBin++) {
-              float Binvalue = h->GetBinContent(xBin, yBin);
-              if (Binvalue != 0) {
-                if (RunNo == 1) {
-                  PadSum += Binvalue;
-                  PadsCount++;
+              const float binvalue = h->GetBinContent(xBin, yBin);
+              if (binvalue != 0) {
+                if (runNo == 1) {
+                  padSum += binvalue;
+                  padsCount++;
                 } else {
-                  PadStdev += pow(Binvalue - PadMean, 2);
+                  padStdev += pow(binvalue - padMean, 2);
                 }
               }
             }
           }
 
-          if (RunNo == 1) {
-            PadMean = PadSum / PadsCount;
+          if (runNo == 1 && padSum > 0.) { // no need for div by 0 check, because if padSum > 0 -> padsCount>0
+            padMean = padSum / padsCount;
           }
         }
 
         if (mEmptyCheck) {
-          if (PadsCount > mMediumQualityLimit * totalPads) {
-            result_Empty = Quality::Good;
-          } else if (PadsCount < mBadQualityLimit * totalPads) {
-            result_Empty = Quality::Bad;
+          if (padsCount > mMediumQualityLimit * totalPads) {
+            resultEmpty = Quality::Good;
+          } else if (padsCount < mBadQualityLimit * totalPads) {
+            resultEmpty = Quality::Bad;
           } else {
-            result_Empty = Quality::Medium;
+            resultEmpty = Quality::Medium;
           }
-          mSectorsQuality_Empty.push_back(result_Empty);
-          mEmptyPadPercent.push_back(1. - (float)PadsCount / totalPads);
+          mSectorsQuality_Empty.push_back(resultEmpty);
+          mEmptyPadPercent.push_back(1. - (float)padsCount / totalPads);
         }
 
-        PadStdev = sqrt(PadStdev / (PadsCount - 1));
-        mPadMeans.push_back(PadMean);
-        mPadStdev.push_back(PadStdev);
+        padStdev = sqrt(padStdev / (padsCount - 1));
+        mPadMeans.push_back(padMean);
+        mPadStdev.push_back(padStdev);
       }
-      float SumOfWeights = 0.;
+      float sumOfWeights = 0.;
       for (size_t it = 0; it < mPadMeans.size(); it++) { // loop over all pads
         // calculate the total mean and standard deviation
         mTotalMean += mPadMeans[it] / mPadStdev[it];
-        SumOfWeights += 1 / mPadStdev[it];
+        sumOfWeights += 1 / mPadStdev[it];
       }
-      mTotalStdev = sqrt(1 / SumOfWeights); // standard deviation of the weighted average.
-      mTotalMean /= SumOfWeights;           // Weighted average (by standard deviation) of the total mean
+      mTotalStdev = sqrt(1 / sumOfWeights); // standard deviation of the weighted average.
+      mTotalMean /= sumOfWeights;           // Weighted average (by standard deviation) of the total mean
       // calculate the Qualities:
 
       for (size_t it = 0; it < mPadMeans.size(); it++) { // loop over all pads
 
         if (mExpectedValueCheck) {
 
-          if (fabs(mPadMeans[it] - mExpectedValue) < mPadStdev[it] * mExpectedValueMediumSigmas) {
-            result_EV = Quality::Good;
-          } else if (fabs(mPadMeans[it] - mExpectedValue) >= mPadStdev[it] * mExpectedValueMediumSigmas && fabs(mPadMeans[it] - mExpectedValue) < mPadStdev[it] * mExpectedValueBadSigmas) {
-            result_EV = Quality::Medium;
+          if (std::abs(mPadMeans[it] - mExpectedValue) < mPadStdev[it] * mExpectedValueMediumSigmas) {
+            resultEV = Quality::Good;
+          } else if (std::abs(mPadMeans[it] - mExpectedValue) >= mPadStdev[it] * mExpectedValueMediumSigmas && std::abs(mPadMeans[it] - mExpectedValue) < mPadStdev[it] * mExpectedValueBadSigmas) {
+            resultEV = Quality::Medium;
           } else {
-            result_EV = Quality::Bad;
+            resultEV = Quality::Bad;
           }
         }
 
-        mSectorsQuality_EV.push_back(result_EV);
+        mSectorsQuality_EV.push_back(resultEV);
         if (mMeanCheck) {
 
-          if (fabs(mPadMeans[it] - mTotalMean) < mPadStdev[it] * mMeanMediumSigmas) {
-            result_Mean = Quality::Good;
-          } else if (fabs(mPadMeans[it] - mTotalMean) >= mPadStdev[it] * mMeanMediumSigmas && fabs(mPadMeans[it] - mTotalMean) < mPadStdev[it] * mMeanBadSigmas) {
-            result_Mean = Quality::Medium;
+          if (std::abs(mPadMeans[it] - mTotalMean) < mPadStdev[it] * mMeanMediumSigmas) {
+            resultMean = Quality::Good;
+          } else if (std::abs(mPadMeans[it] - mTotalMean) >= mPadStdev[it] * mMeanMediumSigmas && std::abs(mPadMeans[it] - mTotalMean) < mPadStdev[it] * mMeanBadSigmas) {
+            resultMean = Quality::Medium;
           } else {
-            result_Mean = Quality::Bad;
+            resultMean = Quality::Bad;
           }
         }
 
-        mSectorsQuality_Mean.push_back(result_Mean);
+        mSectorsQuality_Mean.push_back(resultMean);
 
-        std::vector<Quality> Qs;
+        std::vector<Quality> qualities;
         if (mMeanCheck) {
-          Qs.push_back(result_Mean);
+          qualities.push_back(resultMean);
         }
 
         if (mExpectedValueCheck) {
-          Qs.push_back(result_EV);
+          qualities.push_back(resultEV);
         }
 
         if (mEmptyCheck) {
-          Qs.push_back(mSectorsQuality_Empty[it]);
+          qualities.push_back(mSectorsQuality_Empty[it]);
         }
-        if (Qs.size() > 0) {
-          Quality Worst = Quality::Good;
-          for (int Quality = 0; Quality < Qs.size(); Quality++) {
-            if (Qs[Quality].isWorseThan(Worst)) {
-              Worst = Qs[Quality];
+        if (qualities.size() > 0) {
+          Quality worst = Quality::Good;
+          for (int Quality = 0; Quality < qualities.size(); Quality++) {
+            if (qualities[Quality].isWorseThan(worst)) {
+              worst = qualities[Quality];
             }
           }
-          mSectorsQuality.push_back(Worst);
+          mSectorsQuality.push_back(worst);
         } else {
           ILOG(Error, Support) << "No Qualities were found!" << ENDM;
         }
         //// Quality aggregation:
         if (mMeanCheck && mExpectedValueCheck) { // compare the total mean to the expected value. This is returned as the quality object
-          if (fabs(mTotalMean - mExpectedValue) < mTotalStdev * mExpectedValueMediumSigmas) {
-            result_Global = Quality::Good;
-          } else if (fabs(mTotalMean - mExpectedValue) > mTotalStdev * mExpectedValueBadSigmas) {
-            result_Global = Quality::Bad;
+          if (std::abs(mTotalMean - mExpectedValue) < mTotalStdev * mExpectedValueMediumSigmas) {
+            resultGlobal = Quality::Good;
+          } else if (std::abs(mTotalMean - mExpectedValue) > mTotalStdev * mExpectedValueBadSigmas) {
+            resultGlobal = Quality::Bad;
           } else {
-            result_Global = Quality::Medium;
+            resultGlobal = Quality::Medium;
           }
         }
 
@@ -299,7 +296,7 @@ Quality CheckOfPads::check(std::map<std::string, std::shared_ptr<MonitorObject>>
 
     } // if MO exists
   }   // MO-map loop
-  return result_Global;
+  return resultGlobal;
 } // end of loop over moMap
 
 //______________________________________________________________________________
